@@ -1,0 +1,132 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+
+#include <ncurses.h>
+
+/*
+?00 NONE
+?01 RED
+?10 GREEN
+?11 BLUE
+0?? BLANK
+1?? STAR
+*/
+
+int *b=NULL;
+int w=0,h=0;
+int x=0,y=0,d=0,g=0;
+int key=0;
+bool quit=false;
+
+void load(char *filename) {
+    int i,j,k;
+    int c;
+    char *o="01234567";
+    FILE *fp=fopen(filename,"r");
+    fscanf(fp,"%d,%d,%d,%d,%d",&w,&h,&x,&y,&d);
+    b=calloc(w*h,sizeof(*b));
+    g=0;
+    k=0;
+    while((c=fgetc(fp))!=EOF) {
+        j=-1;
+        for(i=0;i<8;i++) {
+            if(c==o[i]) {
+                j=i;
+                break;
+            }
+        }
+        if(j!=-1) {
+            b[k++]=j;
+            if(j & 0x04) g=g+1;
+        }
+    }
+    fclose(fp);
+}
+
+void setcolor(int fg,int bg) {
+    if(fg==0 && bg==0) attron(COLOR_PAIR(1));
+    if(fg==0 && bg==1) attron(COLOR_PAIR(2));
+    if(fg==0 && bg==2) attron(COLOR_PAIR(3));
+    if(fg==0 && bg==3) attron(COLOR_PAIR(4));
+    if(fg==1 && bg==1) attron(COLOR_PAIR(5));
+    if(fg==1 && bg==2) attron(COLOR_PAIR(6));
+    if(fg==1 && bg==3) attron(COLOR_PAIR(7));
+}
+
+void show(int u,int v) {
+    int i,j,k,l,fg,bg;
+    attron(COLOR_PAIR(1));
+    clear();
+    for(j=0;j<h;j++) {
+        for(i=0;i<w;i++) {
+            move(j+v,i+u);
+            k = b[j*w+i] & 0x03;
+            l = b[j*w+i] & 0x04;
+            fg = 0;
+            switch(k) {
+            case 0: bg=0; break;
+            case 1: bg=1; break;
+            case 2: bg=2; break;
+            case 3: bg=3; break;
+            default: break;
+            }
+            if(x==i && y==j) {
+                setcolor(fg,bg);
+                switch(d) {
+                case 0: addch(ACS_UARROW); break;
+                case 1: addch(ACS_RARROW); break;
+                case 2: addch(ACS_DARROW); break;
+                case 3: addch(ACS_LARROW); break;
+                default: break;
+                }
+            } else if(l) {
+                fg=1;
+                setcolor(fg,bg);
+                printw("*");
+            } else if(k!=0) {
+                fg=0;
+                setcolor(fg,bg);
+                printw(" ");
+            } else {
+                fg=0;
+                setcolor(fg,bg);
+                printw(".");
+            }
+        }
+    }
+    refresh();
+}
+
+int main(int argc,char *argv[]) {
+
+	if(argc!=2) {
+		fprintf(stderr,"Syntax: %s LevelFile\n",argv[0]);
+		return 1;
+	}
+
+	load(argv[1]);
+	
+	initscr();
+	raw();
+	keypad(stdscr, TRUE);
+	noecho();
+	
+	start_color();
+
+	init_pair(1,COLOR_WHITE,COLOR_BLACK);
+	init_pair(2,COLOR_WHITE,COLOR_RED);
+	init_pair(3,COLOR_WHITE,COLOR_GREEN);
+	init_pair(4,COLOR_WHITE,COLOR_BLUE);
+	init_pair(5,COLOR_YELLOW,COLOR_RED);
+	init_pair(6,COLOR_YELLOW,COLOR_GREEN);
+	init_pair(7,COLOR_YELLOW,COLOR_BLUE);
+
+	show(0,0);
+
+	getch();
+	endwin();
+
+    return 0;
+}
