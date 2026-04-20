@@ -306,6 +306,11 @@ void Input(Code *code) {
         case 'G': if(code->colors[k]!=2) code->instructions[k]='G'; putcc(code,k); break;
         case 'B': if(code->colors[k]!=3) code->instructions[k]='B'; putcc(code,k); break;
 
+        case '0': case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9':        
+            code->instructions[k]=key; putcc(code,k); 
+            break;
+
         default: break;
         }
         
