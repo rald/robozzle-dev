@@ -266,14 +266,7 @@ void Code_Draw(Code *code) {
     refresh();
 }
 
-void putcc(Code *code,int k) {
-    move(code->cy+code->y+1,code->cx+code->x+1);
-    attron(COLOR_PAIR(code->colors[k]+1));
-    addch(code->instructions[k]);        
-}
-
 void Input(Code *code) {
-    int k;
     int key;
 
     if(kbhit()) {
@@ -281,36 +274,14 @@ void Input(Code *code) {
         if(key==0) key=getch()+256;
         if(key==27) quit=true;
 //        printf("%d\n",key);
-
-        k=code->cy*code->w+code->cx;
-
         switch(key) {
-        case 259: if(code->cy>0)         code->cy--; break;
-        case 258: if(code->cy<code->h-1) code->cy++; break;
-        case 260: if(code->cx>0)         code->cx--; break;
-        case 261: if(code->cx<code->w-1) code->cx++; break;
-        
-        case '^': code->instructions[k]='^'; putcc(code,k); break;
-        case '<': code->instructions[k]='<'; putcc(code,k); break;
-        case '>': code->instructions[k]='>'; putcc(code,k); break;
-
-        case 'X': case 'x': code->instructions[k]='X'; putcc(code,k); break;
-
-        case '.': code->colors[k]=0; code->instructions[k]='.'; putcc(code,k); break;
-
-        case 'r': if(code->instructions[k]!='R') code->colors[k]=1; putcc(code,k); break;
-        case 'g': if(code->instructions[k]!='G') code->colors[k]=2; putcc(code,k); break;
-        case 'b': if(code->instructions[k]!='B') code->colors[k]=3; putcc(code,k); break;
-        
-        case 'R': if(code->colors[k]!=1) code->instructions[k]='R'; putcc(code,k); break;
-        case 'G': if(code->colors[k]!=2) code->instructions[k]='G'; putcc(code,k); break;
-        case 'B': if(code->colors[k]!=3) code->instructions[k]='B'; putcc(code,k); break;
-
+        case 259: if(code->y>0) code->y--; break;
+        case 258: if(code->y<9) code->y++; break;
+        case 260: if(code->x>0) code->x--; break;
+        case 261: if(code->x<9) code->x++; break;
         default: break;
         }
-        
         move(code->cy+code->y+1,code->cx+code->x+1);
-
     }
 }
 
