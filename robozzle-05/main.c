@@ -19,15 +19,13 @@ typedef struct {
 } Board;
 
 typedef struct {
-    int w,h,x,y;
-    int cx,cy;
+    int w,h,x,y,px,py;
     int *colors;
-    char *instructions;
+    int *instruction;
 } Code;
 
 bool quit=false;
 int key=0;
-int maxx,maxy;
 
 int kbhit(void) {
     int ch = getch();
@@ -170,7 +168,7 @@ Board *load(const char *filename) {
     return board;
 }
 
-void Board_Draw(Board *board,int x,int y) {
+void show(Board *board,int x,int y) {
     int i,j,k;
     char cell;
     int color_pair;
@@ -209,97 +207,21 @@ void Board_Draw(Board *board,int x,int y) {
             k++;
         }
     }
-    refresh();
 }
 
-Code *Code_New(int x,int y) {
-    int i,j,k;
 
-    Code *code=malloc(sizeof(*code));
-    if(!code) return NULL;
-    
-    code->w=10;
-    code->h=10;
-    code->x=x;
-    code->y=y;
-    code->cx=0;
-    code->cy=0;
-    
-    code->colors=calloc(code->w*code->h,sizeof(*code->colors));
-    code->instructions=calloc(code->w*code->h,sizeof(*code->instructions));
-
-    k=0;
-    for(j=0;j<code->h;j++) {
-        for(i=0;i<code->w;i++) {
-            code->colors[k]=0;
-            code->instructions[k]='.';
-            k++;
-        }
-    }
-
-    return code;
-}
-
-void Code_Draw(Code *code) {
-    int i,j,k,l,m;
-    
-    move(code->y,code->x+1);
-    attron(COLOR_PAIR(5));
-    for(i=0;i<10;i++) printw("%d",i);
-    m=0;
-    for(j=0;j<10;j++) {
-        move(j+code->y+1,code->x);
-        attron(COLOR_PAIR(5));
-        printw("%d",j);
-        for(i=0;i<10;i++) {
-            k=code->colors[m]+1;
-            l=code->instructions[m];
-
-            move(code->y+j+1,code->x+i+1);
-            attron(COLOR_PAIR(k));            
-            addch(l);
-            
-            m++;            
-        }
-    }
-    move(code->cy+code->y+1,code->cx+code->x+1);
-    refresh();
-}
-
-void Input(Code *code) {
-    int key;
-
-    if(kbhit()) {
-        key=getch();
-        if(key==0) key=getch()+256;
-        if(key==27) quit=true;
-//        printf("%d\n",key);
-        switch(key) {
-        case 259: if(code->y>0) code->y--; break;
-        case 258: if(code->y<9) code->y++; break;
-        case 260: if(code->x>0) code->x--; break;
-        case 261: if(code->x<9) code->x++; break;
-        default: break;
-        }
-        move(code->cy+code->y+1,code->cx+code->x+1);
-    }
-}
 
 int main(void) {
 
     init();
 
     Board *board=load("LEVELS.TXT");
-    Code *code=Code_New(0,0);
 
-    getmaxyx(stdscr,maxy,maxx);
+    show(board,0,0);
 
-    Board_Draw(board,maxx-board->w,0);
-    Code_Draw(code);
-    
-    while(!quit) {
-        Input(code);
-    }
+    refresh();
+
+    getchar();
 
     cleanup();
 
