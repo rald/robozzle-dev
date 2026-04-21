@@ -8,6 +8,7 @@
 typedef enum {
     GAME_STATE_CODE=0,
     GAME_STATE_RUN,
+    GAME_STATE_END,
     GAME_STATE_MAX
 } GameState;
 
@@ -22,6 +23,7 @@ typedef struct {
 typedef struct {
     int w,h,x,y;
     int cx,cy;
+    int ip,fn;
     int *colors;
     char *instructions;
 } Code;
@@ -29,6 +31,10 @@ typedef struct {
 bool quit=false;
 int key=0;
 int maxx,maxy;
+
+Board *board0=NULL;
+Board *board1=NULL;
+Code *code=NULL;
 
 #define CSTK_MAX 100
 int cstk[CSTK_MAX];
@@ -212,30 +218,6 @@ Board *Board_Copy(Board *b0) {
     return b1;
 }
 
-void putcb(Board *board,int l) {
-    int color=((board->cells[l] - '0') % 0x03) + 5; 
-    bool star=(((board->cells[l] - '0') % 0x04) >> 2) ? true: false;
-    move(board->cy + board->y, board->cx + board->x);
-    attron(COLOR_PAIR(color));
-    if(star) {
-        addch('*');
-    } else if(board->cells[l]=='0') {
-        addch('.');
-    } else {
-        addch(' ');
-    }    
-	if(board->cy*board->w+board->cx==l) {
-        move(board->cy + board->y, board->cx + board->x);
-		switch(board->d) {
-		case 0: addch(ACS_UARROW); break;
-		case 1: addch(ACS_RARROW); break;
-		case 2: addch(ACS_DARROW); break;
-		case 3: addch(ACS_LARROW); break;
-		default: break;
-		}
-	}
-}
-
 void Board_Draw(Board *board) {
     int i,j,k;
     char cell;
@@ -290,6 +272,8 @@ Code *Code_New(int x,int y) {
     code->y=y;
     code->cx=0;
     code->cy=0;
+    code->ip=0;
+    code->fn=0;
     
     code->colors=calloc(code->w*code->h,sizeof(*code->colors));
     code->instructions=calloc(code->w*code->h,sizeof(*code->instructions));
@@ -338,20 +322,21 @@ void putcc(Code *code,int k) {
     addch(code->instructions[k]);        
 }
 
-void Code_Input(Code *code) {
+void Code_Input() {
     int k;
     int key;
 
     if(kbhit()) {
         key=getch();
         if(key==0) key=getch()+256;
-        if(key==27) quit=true;
 
 //        printf("%d\n",key);
 
         k=code->cy*code->w+code->cx;
 
         switch(key) {
+        case 27: quit=true; break;
+
         case 259: if(code->cy>0)         code->cy--; break;
         case 258: if(code->cy<code->h-1) code->cy++; break;
         case 260: if(code->cx>0)         code->cx--; break;
@@ -378,68 +363,219 @@ void Code_Input(Code *code) {
             code->instructions[k]=key; putcc(code,k); 
             break;
             
-        case 9: gamestate=GAME_STATE_RUN; break;
+        case 9:
+            Board_Free(board1);
+            board1=Board_Copy(board0);
+            Board_Draw(board1);
+            code->ip=0;
+            code->fn=0;
+            move(code->fn+code->y+1,code->ip+code->x+1);
+            gamestate=GAME_STATE_RUN;
+            break;
 
         default: break;
         }
         
-        move(code->cy+code->y+1,code->cx+code->x+1);
+        if(gamestate==GAME_STATE_CODE) move(code->cy+code->y+1,code->cx+code->x+1);
 
     }
 }
 
-void Run_Input(Board *board,Code *code) {
+void next() {
+    int k;
+    code->ip++; 
+    if(code->ip>=code->w) {
+        if(code->fn==0) {
+            gamestate=GAME_STATE_END; 
+        } else {
+            k=pop(); 
+            code->ip=k%code->w; 
+            code->fn=k/code->w; 
+        }
+    }
+}
+
+void Run_Input() {
     int i,j,k,l,m;
     int key;
     
     if(kbhit()) {
         key=getch();
         if(key==0) key=getch()+256;        
-        if(key==27) quit=true;
-        if(key==9) gamestate=GAME_STATE_CODE;
-        if(key==32) {
-            k=code->cy*code->w+code->cx;   
-            l=board->cy*board->w+board->cx;
 
-            putcb(board,l);
+        switch(key) {
+        case 27: quit=true; break;
+        case 9:
+            move(code->cy+code->y+1,code->cx+code->x+1);
+            gamestate=GAME_STATE_CODE;            
+            break;
+        case 32:
 
-            switch(code->instructions[k]) {
-            case '^': 
-                switch(board->d) {
-                    case 0: board->y--; code->cx++; break;
-                    case 1: board->x++; code->cx++; break;
-                    case 2: board->y++; code->cx++; break;
-                    case 3: board->x--; code->cx++; break;
-                }
-                break;
-            case '<': board->d--; if(board->d<0) board->d=3; code->cx++; break;
-            case '>': board->d++; if(board->d>3) board->d=0; code->cx++; break;
-            case 'R': board->cells[l]=(board->cells[l] & 0x04) | 0x01; code->cx++; break;
-            case 'G': board->cells[l]=(board->cells[l] & 0x04) | 0x02; code->cx++; break;
-            case 'B': board->cells[l]=(board->cells[l] & 0x04) | 0x03; code->cx++; break;
-    
-            case '0': case '1': case '2': case '3': case '4':
-            case '5': case '6': case '7': case '8': case '9':        
-                push(k);
-                code->cx=0;
-                code->cy=key-'0';
-                break;
+            if((board1->cells[board1->cy*board1->w+board1->cx]&0x04)>>2) {
+                board1->cells[board1->cy*board1->w+board1->cx]&=0x03;
+            }           
+        
+            if(     (code->colors[code->fn*code->w+code->ip] == 
+                    ((board1->cells[board1->cy*board1->w+board1->cx]-'0')&0x03)) ||
+                    (code->colors[code->fn*code->w+code->ip] == 0)) {
                 
-            case 'X':
-                m=pop();
-                code->cx=m%code->w;
-                code->cy=m/code->w;
-                code->cx++; 
-                break;                
-            }
-            
-            l=board->cy*board->w+board->cx;
+                switch(code->instructions[code->fn*code->w+code->ip]) {
 
-            putcb(board,l);
+                case '.': next(); break;
+
+                case '^':
+                    
+                    move(board1->cy+board1->y,board1->cx+board1->x);
+                    attron(COLOR_PAIR(((board1->cells[board1->cy*board1->w+board1->cx]-'0') & 0x03) + 5));                    
+
+                    if((board1->cells[board1->cy*board1->w+board1->cx] & 0x04) >> 2) {
+                        addch('*');
+                    } else if(board1->cells[board1->cy*board1->w+board1->cx]=='0') {
+                        addch('.');
+                    } else {
+                        addch(' ');
+                    }
+                    
+                    switch(board1->d) {
+                    case 0: if(board1->cy>0)           board1->cy--; next(); break;
+                    case 1: if(board1->cx<board1->w-1) board1->cx++; next(); break;
+                    case 2: if(board1->cy<board1->h-1) board1->cy++; next(); break;
+                    case 3: if(board1->cx>0)           board1->cx--; next(); break;
+                    default: break;
+                    }
+                    
+                    move(board1->cy+board1->y,board1->cx+board1->x);
+                    attron(COLOR_PAIR(((board1->cells[board1->cy*board1->w+board1->cx]-'0') & 0x03) + 5));                    
+
+                    switch(board1->d) {
+                    case 0: addch(ACS_UARROW); break;
+                    case 1: addch(ACS_RARROW); break;
+                    case 2: addch(ACS_DARROW); break;
+                    case 3: addch(ACS_LARROW); break;
+                    }
+
+                    break;
+                    
+                case '<': 
+                
+                    board1->d--; if(board1->d<0) board1->d=3; 
+
+                    move(board1->cy+board1->y,board1->cx+board1->x);
+                    attron(COLOR_PAIR(((board1->cells[board1->cy*board1->w+board1->cx]-'0') & 0x03) + 5));                    
+
+                    switch(board1->d) {
+                    case 0: addch(ACS_UARROW); break;
+                    case 1: addch(ACS_RARROW); break;
+                    case 2: addch(ACS_DARROW); break;
+                    case 3: addch(ACS_LARROW); break;
+                    }
+                                        
+                    next(); 
+                    break;
+                    
+                case '>': 
+                
+                    board1->d++; if(board1->d>3) board1->d=0; 
+                    
+                    move(board1->cy+board1->y,board1->cx+board1->x);
+                    attron(COLOR_PAIR(((board1->cells[board1->cy*board1->w+board1->cx]-'0') & 0x03) + 5));                    
+
+                    switch(board1->d) {
+                    case 0: addch(ACS_UARROW); break;
+                    case 1: addch(ACS_RARROW); break;
+                    case 2: addch(ACS_DARROW); break;
+                    case 3: addch(ACS_LARROW); break;
+                    }
+                                        
+                    next(); 
+                    break;
+
+                case 'R': 
+
+                    board1->cells[board1->cy*board1->w+board1->cx]=(board1->cells[board1->cy*board1->w+board1->cx]&0x04)|0x01; 
+
+                    move(board1->cy+board1->y,board1->cx+board1->x);
+                    attron(COLOR_PAIR(((board1->cells[board1->cy*board1->w+board1->cx]-'0') & 0x03) + 5));                    
+
+                    if((board1->cells[board1->cy*board1->w+board1->cx] & 0x04) >> 2) {
+                        addch('*');
+                    } else if(board1->cells[board1->cy*board1->w+board1->cx]=='0') {
+                        addch('.');
+                    } else {
+                        addch(' ');
+                    }
+
+                    break;
+
+                case 'G': 
+
+                    board1->cells[board1->cy*board1->w+board1->cx]=(board1->cells[board1->cy*board1->w+board1->cx]&0x04)|0x01; 
+
+                    move(board1->cy+board1->y,board1->cx+board1->x);
+                    attron(COLOR_PAIR(((board1->cells[board1->cy*board1->w+board1->cx]-'0') & 0x03) + 5));                    
+
+                    if((board1->cells[board1->cy*board1->w+board1->cx] & 0x04) >> 2) {
+                        addch('*');
+                    } else if(board1->cells[board1->cy*board1->w+board1->cx]=='0') {
+                        addch('.');
+                    } else {
+                        addch(' ');
+                    }
+
+                    break;
+
+                case 'B': 
+
+                    board1->cells[board1->cy*board1->w+board1->cx]=(board1->cells[board1->cy*board1->w+board1->cx]&0x04)|0x01; 
+
+                    move(board1->cy+board1->y,board1->cx+board1->x);
+                    attron(COLOR_PAIR(((board1->cells[board1->cy*board1->w+board1->cx]-'0') & 0x03) + 5));                    
+
+                    if((board1->cells[board1->cy*board1->w+board1->cx] & 0x04) >> 2) {
+                        addch('*');
+                    } else if(board1->cells[board1->cy*board1->w+board1->cx]=='0') {
+                        addch('.');
+                    } else {
+                        addch(' ');
+                    }
+
+                    break;
+                    
+                case '0': case '1': case '2': case '3': case '4':
+                case '5': case '6': case '7': case '8': case '9':
+
+                    push(code->fn*code->w+code->ip);
+                    code->fn=code->instructions[code->fn*code->w+code->ip]-'0';
+                    code->ip=0;
+                    break;
+                    
+                case 'X':
+                
+                    k=pop();
+                    code->fn=k/code->w;
+                    code->ip=k%code->w;
+                    break;
+
+                default: break;
+                }                
+            }
+        
+            move(code->fn+code->y+1,code->ip+code->x+1);
+
+            break;
+
+        default: break;
         }
     }
-    
     refresh();
+}
+
+void End_Input() {
+    if(kbhit()) {
+        key=getch();
+        if(key==0) key=getch()+256;        
+        if(key==27) quit=true;
+    }    
 }
 
 int main(void) {
@@ -448,26 +584,23 @@ int main(void) {
 
     getmaxyx(stdscr,maxy,maxx);
 
-    Board *board0=Board_New("LEVELS.TXT");
+    board0=Board_New("LEVELS.TXT");
     board0->x=maxx-board0->w;
     board0->y=0;
     
-    Board *board1=Board_Copy(board0);
+    board1=Board_Copy(board0);
 
-    Code *code=Code_New(0,0);
+    code=Code_New(0,0);
 
     Board_Draw(board1);
     Code_Draw(code);
     
     while(!quit) {
         switch(gamestate) {
-            case GAME_STATE_CODE: Code_Input(code); break;
-            case GAME_STATE_RUN: 
-                Board_Free(board1);
-                board1=Board_Copy(board0);
-                Run_Input(board1,code); 
-            break;
-            default: break;
+        case GAME_STATE_CODE:   Code_Input();   break;
+        case GAME_STATE_RUN:    Run_Input();    break;
+        case GAME_STATE_END:    End_Input();    break;
+        default: break;
         }
     }
 
@@ -475,3 +608,6 @@ int main(void) {
 
     return 0;
 }
+
+
+
