@@ -15,6 +15,7 @@ GameState gamestate=GAME_STATE_CODE;
 
 typedef struct {
     int w,h,x,y,d,g;
+    int cx,cy;
     char *cells;
 } Board;
 
@@ -28,6 +29,19 @@ typedef struct {
 bool quit=false;
 int key=0;
 int maxx,maxy;
+
+#define CSTK_MAX 100
+int cstk[CSTK_MAX];
+int csp=CSTK_MAX;
+
+void push(int ip) {
+    cstk[--csp]=ip;
+}
+
+int pop() {
+    int ip=cstk[csp++];
+    return ip;
+}
 
 int kbhit(void) {
     int ch = getch();
@@ -139,7 +153,7 @@ char *decode(Board *board,char *e) {
     return cells;
 }
 
-Board *load(const char *filename) {
+Board *Board_New(const char *filename) {
     Board *board=malloc(sizeof(*board));
     char *level=randline(filename);
     char *enc=NULL;
@@ -153,7 +167,7 @@ Board *load(const char *filename) {
 
     sscanf(level,"%d,%d,%d,%d,%d",
         &board->w,&board->h,
-        &board->x,&board->y,&board->d);
+        &board->cx,&board->cy,&board->d);
 
     board->cells=calloc(board->w*board->h,sizeof(*board->cells));
     enc=strrchr(level,',')+1;
@@ -168,6 +182,34 @@ Board *load(const char *filename) {
     }
 
     return board;
+}
+
+void Board_Free(Board *board) {
+    free(board->cells);
+    free(board);
+}
+
+Board *Board_Copy(Board *b0) {
+    int i;
+
+    Board *b1=malloc(sizeof(*b1));
+
+    if(!b1) return NULL;
+
+    b1->w=b0->w;
+    b1->h=b0->h;
+    b1->x=b0->x;
+    b1->y=b0->y;
+    b1->d=b0->d;
+    b1->g=b0->g;
+    b1->cx=b0->cx;
+    b1->cy=b0->cy;
+    
+    b1->cells=calloc(b1->w*b1->h,sizeof(*b1->cells));
+
+    for(i=0;i<b1->w*b1->h;i++) b1->cells[i]=b0->cells[i];
+    
+    return b1;
 }
 
 void Board_Draw(Board *board,int x,int y) {
@@ -272,7 +314,7 @@ void putcc(Code *code,int k) {
     addch(code->instructions[k]);        
 }
 
-void Input(Code *code) {
+void Code_Input(Code *code) {
     int k;
     int key;
 
@@ -280,6 +322,7 @@ void Input(Code *code) {
         key=getch();
         if(key==0) key=getch()+256;
         if(key==27) quit=true;
+
 //        printf("%d\n",key);
 
         k=code->cy*code->w+code->cx;
@@ -310,6 +353,8 @@ void Input(Code *code) {
         case '5': case '6': case '7': case '8': case '9':        
             code->instructions[k]=key; putcc(code,k); 
             break;
+            
+        case 9: gamestate=GAME_STATE_RUN; break;
 
         default: break;
         }
@@ -319,20 +364,92 @@ void Input(Code *code) {
     }
 }
 
+void putcb(Board *board,int k) {
+    move(board->cy,board->cx);
+    attron(COLOR_PAIR(((board->cells[k]-'0') & 0x03) + 5));
+    if(board->cells[k] & 0x04) {
+        addch('*');
+    } else if(board->cells[k]=='0') {
+        addch('.');
+    } else {
+        addch(' ');
+    }
+}
+
+void Run_Input(Board *board,Code *code) {
+    int i,j,k,l,m;
+    int key;
+    
+    if(kbhit()) {
+        key=getch();
+        if(key==0) key=getch()+256;        
+        if(key==27) quit=true;
+        if(key==9) gamestate=GAME_STATE_CODE;
+        if(key==32) {
+            k=code->cy*code->w+code->cx;   
+            l=board->y*board->w+board->x;
+            switch(code->instructions[k]) {
+            case '^': 
+                switch(board->d) {
+                    case 0: board->y--; code->cx++; break;
+                    case 1: board->x++; code->cx++; break;
+                    case 2: board->y++; code->cx++; break;
+                    case 3: board->x--; code->cx++; break;
+                }
+                break;
+            case '<': board->d--; if(board->d<0) board->d=3; code->cx++; break;
+            case '>': board->d++; if(board->d>3) board->d=0; code->cx++; break;
+            case 'R': board->cells[l]=(board->cells[l] & 0x04) | 0x01; code->cx++; break;
+            case 'G': board->cells[l]=(board->cells[l] & 0x04) | 0x02; code->cx++; break;
+            case 'B': board->cells[l]=(board->cells[l] & 0x04) | 0x03; code->cx++; break;
+    
+            case '0': case '1': case '2': case '3': case '4':
+            case '5': case '6': case '7': case '8': case '9':        
+                push(k);
+                code->cx=0;
+                code->cy=key-'0';
+                break;
+                
+            case 'X':
+                m=pop();
+                code->cx=m%code->w;
+                code->cy=m/code->w;
+                code->cx++; 
+                break;                
+            }
+        }
+    }
+    
+    refresh();
+}
+
 int main(void) {
 
     init();
 
-    Board *board=load("LEVELS.TXT");
-    Code *code=Code_New(0,0);
-
     getmaxyx(stdscr,maxy,maxx);
 
-    Board_Draw(board,maxx-board->w,0);
+    Board *board0=Board_New("LEVELS.TXT");
+    board0->x=maxx-board0->w;
+    board0->y=0;
+    
+    Board *board1=Board_Copy(board0);
+
+    Code *code=Code_New(0,0);
+
+    Board_Draw(board1);
     Code_Draw(code);
     
     while(!quit) {
-        Input(code);
+        switch(gamestate) {
+            case GAME_STATE_CODE: Code_Input(code); break;
+            case GAME_STATE_RUN: 
+                Board_Free(board1);
+                board1=Board_Copy(board0);
+                Run_Input(board1,code); 
+            break;
+            default: break;
+        }
     }
 
     cleanup();
