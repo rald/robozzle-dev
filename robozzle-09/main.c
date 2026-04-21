@@ -369,9 +369,6 @@ void Code_Input() {
             Board_Draw(board1);
             code->ip=0;
             code->fn=0;
-            getmaxyx(stdscr,maxy,maxx);
-            attron(COLOR_PAIR(1));
-            move(maxy-1,0); printw("RUN ");
             move(code->fn+code->y+1,code->ip+code->x+1);
             gamestate=GAME_STATE_RUN;
             break;
@@ -387,13 +384,8 @@ void Code_Input() {
 void next() {
     int k;
     code->ip++; 
-    if(code->ip>code->w-1) {
-        code->ip=code->w-1;
+    if(code->ip>=code->w) {
         if(code->fn==0) {
-            getmaxyx(stdscr,maxy,maxx);
-            attron(COLOR_PAIR(1));
-            move(maxy-1,0); printw("GAME OVER");
-            move(code->cy+code->x+1,code->cx+code->x+1);
             gamestate=GAME_STATE_END; 
         } else {
             k=pop(); 
@@ -414,9 +406,6 @@ void Run_Input() {
         switch(key) {
         case 27: quit=true; break;
         case 9:
-            getmaxyx(stdscr,maxy,maxx);
-            attron(COLOR_PAIR(1));
-            move(maxy-1,0); printw("CODE");
             move(code->cy+code->y+1,code->cx+code->x+1);
             gamestate=GAME_STATE_CODE;            
             break;
@@ -424,15 +413,6 @@ void Run_Input() {
 
             if((board1->cells[board1->cy*board1->w+board1->cx]&0x04)>>2) {
                 board1->cells[board1->cy*board1->w+board1->cx]&=0x03;
-                board1->g--;
-                if(board1->g<=0) {
-                    getmaxyx(stdscr,maxy,maxx);
-                    attron(COLOR_PAIR(1));
-                    move(maxy-1,0); printw("GAME OVER");
-                    move(code->cy+code->y+1,code->cx+code->x+1);
-                    gamestate=GAME_STATE_END;
-                    return;
-                }
             }           
         
             if(     (code->colors[code->fn*code->w+code->ip] == 
@@ -615,11 +595,6 @@ int main(void) {
     Board_Draw(board1);
     Code_Draw(code);
     
-    getmaxyx(stdscr,maxy,maxx);
-    attron(COLOR_PAIR(1));
-    move(maxy-1,0); printw("CODE");
-    move(code->cy+code->x+1,code->cx+code->x+1);
-
     while(!quit) {
         switch(gamestate) {
         case GAME_STATE_CODE:   Code_Input();   break;
