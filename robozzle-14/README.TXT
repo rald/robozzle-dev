@@ -23,7 +23,6 @@ ESC     quit program
 make        build binaries
 make enc    encode levels
 make dec    decode levels
-make clean  clean all
 
 LEVEL FORMAT:
 <width>,<height>,<player_x>,<player_y>,<player_direction>
